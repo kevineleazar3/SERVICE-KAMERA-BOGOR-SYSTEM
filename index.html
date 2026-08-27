@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Lacak Service Kamera & Lensa</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-slate-100 min-h-screen text-slate-800 flex flex-col items-center p-4">
+
+  <div class="w-full max-w-xl bg-white rounded-2xl shadow-lg p-6 my-4">
+    <!-- Header -->
+    <div class="text-center border-b pb-4 mb-6">
+      <h1 class="text-2xl font-bold text-slate-900">Service Kamera Bogor</h1>
+      <p class="text-sm text-slate-500">Lacak Progress Perbaikan Unit Anda</p>
+    </div>
+
+    <!-- Pencarian SPK -->
+    <div class="space-y-6">
+      <div class="flex gap-2">
+        <input type="text" id="searchSpk" placeholder="Masukkan Nomor SPK (misal: SPK-001) / No HP" class="flex-1 p-3 border rounded-xl outline-none focus:ring-2 focus:ring-blue-500">
+        <button onclick="searchSPK()" class="bg-blue-600 hover:bg-blue-700 text-white font-semibold px-5 rounded-xl transition">
+          Cek Unit
+        </button>
+      </div>
+
+      <!-- Hasil Card SPK -->
+      <div id="spkResult" class="hidden border rounded-2xl p-6 bg-slate-50 space-y-4">
+        <div class="flex justify-between items-start border-b pb-3">
+          <div>
+            <span id="resSpkId" class="text-xs font-bold bg-blue-100 text-blue-800 px-2.5 py-1 rounded-full">SPK-001</span>
+            <h2 id="resUnit" class="text-lg font-bold text-slate-900 mt-2">-</h2>
+            <p id="resOwner" class="text-xs text-slate-500">Pemilik: -</p>
+            <p id="resDropTime" class="text-xs text-slate-400 mt-1">Waktu Drop: -</p>
+          </div>
+          <div class="flex flex-col items-end gap-1">
+            <span id="resStatusBadge" class="text-xs font-bold px-3 py-1.5 rounded-lg bg-amber-100 text-amber-800">Menunggu</span>
+            <span id="resDeadlineBadge" class="text-[11px] px-2 py-0.5 rounded border"></span>
+          </div>
+        </div>
+
+        <!-- Progress Stepper -->
+        <div class="py-2">
+          <p class="text-xs font-semibold text-slate-500 mb-3">PROGRESS PERBAIKAN:</p>
+          <div class="grid grid-cols-4 text-center text-xs font-medium gap-1" id="stepperContainer"></div>
+        </div>
+
+        <div class="bg-white p-4 rounded-xl border text-xs space-y-1">
+          <p class="text-slate-500">Catatan Teknisi / Status Terakhir:</p>
+          <p id="resNotes" class="font-semibold text-slate-800">-</p>
+        </div>
+
+        <!-- Rincian Biaya jika Selesai -->
+        <div id="resInvoiceBox" class="hidden bg-emerald-50 border border-emerald-200 p-4 rounded-xl text-xs space-y-1">
+          <p class="font-bold text-emerald-900">🧾 Total Biaya Perbaikan:</p>
+          <p id="resBiaya" class="text-lg font-black text-emerald-700">Rp 0</p>
+          <p id="resRincianBiaya" class="text-slate-600 italic"></p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const STATUS_STAGES = ["Diterima", "Diagnosa", "Pengerjaan", "Selesai"];
+
+    function getDeadlineStatus(targetStr, status) {
+      if (status === 'Selesai') return { text: '✅ Selesai', color: 'bg-green-100 text-green-800 border-green-300' };
+      if (!targetStr) return { text: 'Tanpa Estimasi', color: 'bg-slate-100 text-slate-600 border-slate-300' };
+
+      const diffHours = (new Date(targetStr).getTime() - new Date().getTime()) / (1000 * 60 * 60);
+
+      if (diffHours < 0) return { text: `🚨 LEWAT DEADLINE`, color: 'bg-red-100 text-red-800 border-red-400 font-bold' };
+      if (diffHours <= 24) return { text: `⚠️ DEADLINE DEKAT`, color: 'bg-amber-100 text-amber-800 border-amber-400 font-bold' };
+      return { text: `⏱️ Sisa ${Math.ceil(diffHours / 24)} Hari`, color: 'bg-blue-100 text-blue-800 border-blue-300' };
+    }
+
+    // Auto-search dari URL ?spk=...
+    window.addEventListener('DOMContentLoaded', () => {
+      const spkParam = new URLSearchParams(window.location.search).get('spk');
+      if (spkParam) {
+        document.getElementById('searchSpk').value = spkParam;
+        searchSPK();
+      }
+    });
+
+    function searchSPK() {
+      const spkData = JSON.parse(localStorage.getItem('spkData')) || [];
+      const query = document.getElementById('searchSpk').value.trim().toLowerCase();
+      const result = spkData.find(item => item.id.toLowerCase() === query || item.phone.includes(query));
+
+      const resBox = document.getElementById('spkResult');
+      if (!result) {
+        alert("Data SPK tidak ditemukan!");
+        resBox.classList.add('hidden');
+        return;
+      }
+
+      document.getElementById('resSpkId').innerText = result.id;
+      document.getElementById('resUnit').innerText = `${result.type} ${result.model}`;
+      document.getElementById('resOwner').innerText = `Pemilik: ${result.name} (${result.phone})`;
+      document.getElementById('resDropTime').innerText = `Waktu Drop: ${result.createdAt || '-'}`;
+      document.getElementById('resStatusBadge').innerText = result.status;
+      document.getElementById('resNotes').innerText = result.notes || "Belum ada catatan teknisi.";
+
+      if (result.status === 'Selesai' && result.biaya) {
+        document.getElementById('resBiaya').innerText = `Rp ${Number(result.biaya).toLocaleString('id-ID')}`;
+        document.getElementById('resRincianBiaya').innerText = `Rincian: ${result.rincianBiaya || '-'}`;
+        document.getElementById('resInvoiceBox').classList.remove('hidden');
+      } else {
+        document.getElementById('resInvoiceBox').classList.add('hidden');
+      }
+
+      const deadline = getDeadlineStatus(result.targetDate, result.status);
+      const deadEl = document.getElementById('resDeadlineBadge');
+      deadEl.innerText = deadline.text;
+      deadEl.className = `text-[11px] px-2 py-0.5 rounded border ${deadline.color}`;
+
+      const stepper = document.getElementById('stepperContainer');
+      stepper.innerHTML = '';
+      const currentIdx = STATUS_STAGES.indexOf(result.status);
+
+      STATUS_STAGES.forEach((stage, idx) => {
+        const isPassed = idx <= currentIdx;
+        const div = document.createElement('div');
+        div.className = `p-2 rounded-lg border ${isPassed ? 'bg-blue-600 text-white font-bold border-blue-600' : 'bg-slate-100 text-slate-400 border-slate-200'}`;
+        div.innerText = stage;
+        stepper.appendChild(div);
+      });
+
+      resBox.classList.remove('hidden');
+    }
+  </script>
+</body>
+</html>
